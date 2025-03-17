@@ -12,49 +12,57 @@
 //! or not, your choice) to generate these impls.
 
 
-pub struct EdgeHandler;
-pub trait Edge {
+pub trait Entity {
+    type Handler;
+}
+
+pub trait Edge: Entity {
     fn inbound() -> &'static str;
     fn outbound() -> &'static str;
 }
-pub trait Edges {
-    fn edges(&mut self) -> &mut Vec<(&'static str, &'static str)>;
+
+pub trait Vertex: Entity {
+    fn label() -> &'static str;
 }
 
 pub struct VertexHandler;
-pub trait Vertex {
-    fn label() -> &'static str;
-}
-pub trait Vertexes {
-    fn vertexes(&mut self) -> &mut Vec<&'static str>;
+pub struct EdgeHandler;
+
+pub struct Schema {
+    pub vertices: Vec<&'static str>,
+    pub edges: Vec<(&'static str, &'static str)>,
 }
 
-pub trait Handle<Any, Entity: Sized> {
-    fn handle(_impl: &mut Any);
+impl Schema {
+    pub fn new() -> Self { Self { vertices: vec![], edges: vec![] } }
+
+    #[allow(private_bounds)]
+    pub fn add<E: Entity>(&mut self) where E::Handler: AddImpl<Self, E>  {
+        E::Handler::add(self);
+    }
+
+    pub fn report(&self) {
+        println!("Vertices: {:?}", self.vertices);
+        println!("Edges: {:?}", self.edges);
+    }
 }
 
-impl<Any, Entity> Handle<Any, Entity> for EdgeHandler where Any: Edges, Entity: Edge
-{
-    fn handle(_impl: &mut Any) {
-        _impl.edges().push((
-            Entity::inbound(),
-            Entity::outbound()
+trait AddImpl<T, E> {
+    fn add(schema: &mut T);
+}
+
+impl<E: Vertex> AddImpl<Schema, E> for VertexHandler {
+    fn add(schema: &mut Schema) {
+        schema.vertices.push(E::label());
+    }
+}
+
+impl<E: Edge> AddImpl<Schema, E> for EdgeHandler {
+    fn add(schema: &mut Schema) {
+        schema.edges.push((
+            E::inbound(),
+            E::outbound()
         ));
-    }
-}
-
-impl<Any, Entity> Handle<Any, Entity> for VertexHandler where Any: Vertexes, Entity: Vertex
-{
-    fn handle(_impl: &mut Any) {
-        _impl.vertexes().push(Entity::label());
-    }
-}
-
-trait __Add<Any, E>: Sized {
-    type Handler: Handle<Any, E>;
-
-    fn add(_impl: &mut Any) {
-        Self::Handler::handle(_impl);
     }
 }
 
@@ -68,53 +76,23 @@ impl Edge for EdgeA {
         VertexB::label()
     }
 }
-impl __Add<Schema, Self> for EdgeA { type Handler = EdgeHandler; }
-
+impl Entity for EdgeA {
+    type Handler = EdgeHandler;
+}
 struct VertexA;
 impl Vertex for VertexA {
     fn label() -> &'static str { "vertex_a" }
 }
-impl __Add<Schema, Self> for VertexA { type Handler = VertexHandler; }
-
+impl Entity for VertexA {
+    type Handler = VertexHandler;
+}
 struct VertexB;
 impl Vertex for VertexB {
     fn label() -> &'static str { "vertex_b" }
 }
-impl __Add<Schema, Self> for VertexB { type Handler = VertexHandler; }
-
-pub struct Schema {
-    pub vertices: Vec<&'static str>,
-    pub edges: Vec<(&'static str, &'static str)>,
+impl Entity for VertexB {
+    type Handler = VertexHandler;
 }
-
-impl Schema {
-    pub fn new() -> Self { Self { vertices: vec![], edges: vec![] } }
-}
-
-impl Edges for Schema {
-    fn edges(&mut self) -> &mut Vec<(&'static str, &'static str)> {
-        &mut self.edges
-    }
-}
-
-impl Vertexes for Schema {
-    fn vertexes(&mut self) -> &mut Vec<&'static str> {
-        self.vertices.as_mut()
-    }
-}
-
-impl Schema {
-    #[allow(private_bounds)]
-    pub fn add<E>(&mut self) where E: __Add<Self, E> {
-        E::add(self);
-    }
-
-    pub fn report(&self) {
-        println!("Vertices: {:?}", self.vertices);
-        println!("Edges: {:?}", self.edges);
-    }
-}
-
 fn main() {
     let mut schema = Schema::new();
 
